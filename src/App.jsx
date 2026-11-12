@@ -675,7 +675,6 @@ function DataTable({ tab, rows, employees = [], currentUser, locations = [], att
           checkOut: null,
           notes: [],
           workFraction: null,
-          earlyBonus: 0,
           manualBonus: 0,
           extraId: null,
           manual: false
@@ -689,7 +688,6 @@ function DataTable({ tab, rows, employees = [], currentUser, locations = [], att
         const fraction = Number(r.workFraction ?? 1);
         item.workFraction = item.workFraction === null ? fraction : Math.min(item.workFraction, fraction);
         if (r.source === 'MANUAL') item.manual = true;
-        item.earlyBonus = Math.max(item.earlyBonus, Number(r.earlyBonusHours || 0));
       }
       const type = String(r.type || '').toUpperCase();
       if (type === 'CHECK_IN' && validStamp && (!item.checkIn || validStamp < item.checkIn)) item.checkIn = validStamp;
@@ -741,7 +739,7 @@ const attendanceRows = [...grouped.values()]
     const timeOnly = value => value ? value.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—';
     return <table><thead><tr><th>Họ tên</th><th>Chi nhánh</th><th>Thời gian vào</th><th>Thời gian ra</th><th>Công</th><th>Giờ cộng thêm</th><th>Hình thức</th><th>Ghi chú</th></tr></thead><tbody>{attendanceRows.map(r => <tr key={r.key}><td><div className="person-cell"><span className={`table-avatar ${tone(getEmployeeName({ userId: r.userId }))}`}>{(getEmployeeName({ userId: r.userId }) || 'N').slice(0, 1).toUpperCase()}</span><span><b>{getEmployeeName({ userId: r.userId })}</b><small>{r.day === 'unknown-date' ? 'Không rõ ngày' : date(`${r.day}T00:00:00`)}</small></span></div></td>
 <td>{getBranchName(r.userId, r.locationId)}</td>
-<td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td><td>{r.workFraction === null ? '—' : r.workFraction === 0.5 ? '0,5' : '1'}</td><td>{(r.earlyBonus + r.manualBonus) > 0 ? <>+{String(Number((r.earlyBonus + r.manualBonus).toFixed(2))).replace('.', ',')} giờ{r.manualBonus > 0 && r.earlyBonus > 0 && <small> (vào sớm {String(r.earlyBonus).replace('.', ',')} + thủ công {String(r.manualBonus).replace('.', ',')})</small>}</> : '—'}</td><td>{r.manual || r.workFraction === null ? 'Thủ công' : 'GPS'}</td><td>{r.notes.join(' · ') || '—'}{canReview && r.extraId && <button className="reject-btn" style={{ marginLeft: 8 }} title="Xóa giờ cộng thêm thủ công" onClick={() => onDeleteExtra(r.extraId)}><X size={14}/></button>}</td></tr>)}</tbody></table>;
+<td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td><td>{r.workFraction === null ? '—' : r.workFraction === 0.5 ? '0,5' : '1'}</td><td>{r.manualBonus > 0 ? `+${String(Number(r.manualBonus.toFixed(2))).replace('.', ',')} giờ` : '—'}</td><td>{r.manual || r.workFraction === null ? 'Thủ công' : 'GPS'}</td><td>{r.notes.join(' · ') || '—'}{canReview && r.extraId && <button className="reject-btn" style={{ marginLeft: 8 }} title="Xóa giờ cộng thêm thủ công" onClick={() => onDeleteExtra(r.extraId)}><X size={14}/></button>}</td></tr>)}</tbody></table>;
   }
   if (tab === 'leaves' || tab === 'overtime') return <table><thead><tr><th>Nhân viên</th>{tab === 'leaves' ? <><th>Từ ngày</th><th>Đến ngày</th></> : <><th>Ngày tăng ca</th><th>Loại tăng ca</th><th>Số giờ</th></>}<th>Lý do</th><th>Trạng thái</th><th>Ghi chú duyệt</th>{canReview && <th>Xử lý</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{getEmployeeName(r)}</td>{tab === 'leaves' ? <><td>{date(r.fromDate)}</td><td>{date(r.toDate)}</td></> : <><td>{date(r.workDate)}</td><td>{({
       WEEKDAY_15: 'Ngày thường (x1.5)',
@@ -778,7 +776,7 @@ const attendanceRows = [...grouped.values()]
             <td>{r.employeeCode || '—'}</td>
             <td>{r.department || '—'}</td>
             <td><b>{r.totalWorkDays}</b> ngày</td>
-            <td><b>{r.bonusHours ?? r.earlyBonusHours ?? 0}</b> giờ{r.manualBonusHours > 0}</td>
+            <td><b>{r.bonusHours || 0}</b> giờ</td>
             <td>{r.overtimeWeekday15 || 0} giờ</td>
             <td>{r.overtimeSunday2 || 0} giờ</td>
             <td>{r.overtimeSundayNight35 || 0} giờ</td>
