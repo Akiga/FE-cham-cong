@@ -11,13 +11,14 @@ const NAV = [
   ['dashboard', 'Tổng quan', Activity], ['attendance', 'Chấm công', MapPin],
   ['employees', 'Nhân viên', Users], ['locations', 'Chi nhánh', Building2],
   ['shifts', 'Ca làm', Clock], ['leaves', 'Nghỉ phép', CalendarDays],
-  ['overtime', 'Tăng ca', BriefcaseBusiness], ['payroll', 'Bảng lương', Wallet]
+  ['overtime', 'Tăng ca', BriefcaseBusiness], ['timesheet', 'Bảng công', CheckCircle], ['payroll', 'Bảng lương', Wallet]
 ];
 const tabLabel = (id, role) =>
   id === 'attendance' && (role === 'ADMIN' || role === 'MANAGER')
     ? 'Quản lý chấm công'
     : (NAV.find(item => item[0] === id)?.[1] || '');
 const money = n => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(n) || 0);
+const moneyExact = n => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(n) || 0);
 const date = v => v ? new Date(v).toLocaleDateString('vi-VN') : '—';
 const dateTime = v => v ? new Date(v).toLocaleString('vi-VN') : '—';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -70,7 +71,7 @@ export default function App() {
     if (id === 'employees') return canSeeEmployees;
     if (id === 'locations') return isAdmin;
     if (id === 'shifts') return canReview;
-    if (id === 'payroll') return true;
+    if (id === 'payroll' || id === 'timesheet') return true;
     return true;
   });
   const headers = useMemo(() => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }), [token]);
@@ -136,8 +137,8 @@ export default function App() {
       } else {
         const params = new URLSearchParams();
         if (tab === 'attendance') { if (filterFrom) params.set('from', filterFrom); if (filterTo) params.set('to', filterTo); }
-        if (tab === 'payroll' && filterMonth) params.set('month', filterMonth);
-        const routes = { employees: '/employees', attendance: '/attendance', locations: '/locations', shifts: '/shifts', leaves: '/leaves', overtime: '/overtime', payroll: '/payroll' };
+        if (['payroll', 'timesheet'].includes(tab) && filterMonth) params.set('month', filterMonth);
+        const routes = { employees: '/employees', attendance: '/attendance', locations: '/locations', shifts: '/shifts', leaves: '/leaves', overtime: '/overtime', payroll: '/payroll', timesheet: '/payroll' };
         const result = await api(`${routes[tab]}${params.size ? `?${params}` : ''}`);
         setData(Array.isArray(result) ? result : []);
       }
@@ -309,7 +310,7 @@ export default function App() {
   async function exportPayroll() {
   try {
     const response = await fetch(
-      `${API}/payroll/export?month=${encodeURIComponent(filterMonth)}`,
+      `${API}/payroll/export?month=${encodeURIComponent(filterMonth)}&type=${tab === 'payroll' ? 'salary' : 'timesheet'}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -328,11 +329,11 @@ export default function App() {
     const a = document.createElement('a');
 
     a.href = url;
-    a.download = `tong-hop-cong-${filterMonth}.xlsx`;
+    a.download = `${tab === 'payroll' ? 'bang-luong' : 'bang-cong'}-${filterMonth}.xlsx`;
     a.click();
 
     URL.revokeObjectURL(url);
-    notify('Đã xuất bảng tổng hợp chấm công');
+    notify(tab === 'payroll' ? 'Đã xuất bảng lương' : 'Đã xuất bảng công');
   } catch (e) {
     notify(e.message, true);
   }
@@ -445,8 +446,8 @@ export default function App() {
             ))}
           </select>
 <input className="filter-input" type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} aria-label="Từ ngày"/><input className="filter-input" type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} aria-label="Đến ngày"/>{canReview && <button className="primary" onClick={() => { setManualForm(prev => ({ ...prev, employeeId: employees.find(x => x.role === 'EMPLOYEE')?.id || '' })); setShowManualForm(v => !v); }}>+ Chấm công thủ công</button>}</>}
-          {tab === 'payroll' && <input className="filter-input" type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />}
-          {tab === 'payroll' && canReview && (
+          {['payroll', 'timesheet'].includes(tab) && <input className="filter-input" type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />}
+          {['payroll', 'timesheet'].includes(tab) && canReview && (
             <button className="outline" onClick={exportPayroll}>
               <Download size={17} /> Xuất Excel
             </button>
@@ -496,7 +497,7 @@ export default function App() {
 }
 
 function tabDescription(tab, role) {
-  const descriptions = { employees: role === 'ADMIN' ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.' : 'Danh sách nhân viên thuộc chi nhánh được phân công.', attendance: 'Theo dõi lịch sử vào ca và ra ca.', locations: 'Quản lý địa điểm và phạm vi chấm công GPS.', shifts: 'Thiết lập thời gian làm việc và thời gian nghỉ.', leaves: 'Theo dõi và xử lý các yêu cầu nghỉ phép.', overtime: 'Theo dõi và xử lý yêu cầu làm thêm giờ.', payroll: 'Tổng hợp ngày công, giờ tăng ca và ngày nghỉ của nhân viên.' };
+  const descriptions = { employees: role === 'ADMIN' ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.' : 'Danh sách nhân viên thuộc chi nhánh được phân công.', attendance: 'Theo dõi lịch sử vào ca và ra ca.', locations: 'Quản lý địa điểm và phạm vi chấm công GPS.', shifts: 'Thiết lập thời gian làm việc và thời gian nghỉ.', leaves: 'Theo dõi và xử lý các yêu cầu nghỉ phép.', overtime: 'Theo dõi và xử lý yêu cầu làm thêm giờ.', timesheet: 'Tổng hợp ngày công, giờ cộng thêm, giờ tăng ca và ngày nghỉ của nhân viên.', payroll: 'Tiền lương theo công, giờ cộng thêm và tăng ca (đã trừ thuế thu nhập 10%).' };
   return descriptions[tab] || '';
 }
 function createLabel(tab) { return ({ employees: 'Thêm nhân viên', locations: 'Thêm chi nhánh', shifts: 'Tạo ca làm', leaves: 'Tạo đơn nghỉ phép', overtime: 'Tạo đơn tăng ca', payroll: 'Nhập bảng lương' })[tab] || 'Thêm mới'; }
@@ -746,47 +747,90 @@ const attendanceRows = [...grouped.values()]
       SUNDAY_2: 'Chủ nhật (x2)',
       SUNDAY_NIGHT_35: 'Chủ nhật sau 17h (x3.5)'
     })[r.overtimeType] || 'Chưa phân loại'}</td><td>{r.hours} giờ</td></>}<td className="reason-cell">{r.reason || '—'}</td><td><StatusBadge value={r.status}/></td><td>{r.reviewNote || '—'}</td>{canReview && <td>{r.status === 'PENDING' ? <div className="review-cell"><input placeholder="Ghi chú duyệt" value={reviewNote[r.id] || ''} onChange={e => setReviewNote(prev => ({ ...prev, [r.id]: e.target.value }))}/><div><button className="approve-btn" onClick={() => onReview(tab, r, 'APPROVED')} title="Duyệt"><Check size={15}/></button><button className="reject-btn" onClick={() => onReview(tab, r, 'REJECTED')} title="Từ chối"><X size={15}/></button></div></div> : '—'}</td>}</tr>)}</tbody></table>;
-  if (tab === 'payroll') {
-  return (
-    <table>
-      <thead>
-        <tr>
-          <th>Nhân viên</th>
-          <th>Mã nhân viên</th>
-          <th>Phòng ban</th>
-          <th>Tổng ngày công</th>
-          <th>Giờ cộng thêm</th>
-          <th>Tăng ca x1.5</th>
-          <th>Tăng ca x2</th>
-          <th>Tăng ca x3.5</th>
-          <th>Tổng ngày nghỉ</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map(r => (
-          <tr key={r.id}>
-            <td>
-              <div className="person-cell">
-                <span className={`table-avatar ${tone(r.fullName)}`}>
-                  {(r.fullName || 'N').slice(0, 1).toUpperCase()}
-                </span>
-                <span><b>{r.fullName}</b></span>
-              </div>
-            </td>
-            <td>{r.employeeCode || '—'}</td>
-            <td>{r.department || '—'}</td>
-            <td><b>{r.totalWorkDays}</b> ngày</td>
-            <td><b>{r.bonusHours || 0}</b> giờ</td>
-            <td>{r.overtimeWeekday15 || 0} giờ</td>
-            <td>{r.overtimeSunday2 || 0} giờ</td>
-            <td>{r.overtimeSundayNight35 || 0} giờ</td>
-            <td>{r.leaveDays} ngày</td>
+  if (tab === 'timesheet') {
+    return (
+      <table>
+        <thead>
+          <tr>
+            <th>Nhân viên</th>
+            <th>Mã nhân viên</th>
+            <th>Phòng ban</th>
+            <th>Tổng ngày công</th>
+            <th>Giờ cộng thêm</th>
+            <th>Tăng ca x1.5</th>
+            <th>Tăng ca x2</th>
+            <th>Tăng ca x3.5</th>
+            <th>Tổng ngày nghỉ</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.id}>
+              <td>
+                <div className="person-cell">
+                  <span className={`table-avatar ${tone(r.fullName)}`}>
+                    {(r.fullName || 'N').slice(0, 1).toUpperCase()}
+                  </span>
+                  <span><b>{r.fullName}</b></span>
+                </div>
+              </td>
+              <td>{r.employeeCode || '—'}</td>
+              <td>{r.department || '—'}</td>
+              <td><b>{r.totalWorkDays}</b> ngày</td>
+              <td><b>{r.bonusHours || 0}</b> giờ</td>
+              <td>{r.overtimeWeekday15 || 0} giờ</td>
+              <td>{r.overtimeSunday2 || 0} giờ</td>
+              <td>{r.overtimeSundayNight35 || 0} giờ</td>
+              <td>{r.leaveDays} ngày</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+  if (tab === 'payroll') {
+    return (
+      <table>
+        <thead>
+          <tr>
+            <th>Nhân viên</th>
+            <th>Mã nhân viên</th>
+            <th>Phòng ban</th>
+            <th>Lương cơ bản</th>
+            <th>Lương theo công</th>
+            <th>Tiền giờ cộng thêm</th>
+            <th>Tiền tăng ca</th>
+            <th>Tổng thu nhập</th>
+            <th>Thuế thu nhập ({Math.round((rows[0]?.taxRate ?? 0.1) * 100)}%)</th>
+            <th>Thực nhận</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.id}>
+              <td>
+                <div className="person-cell">
+                  <span className={`table-avatar ${tone(r.fullName)}`}>
+                    {(r.fullName || 'N').slice(0, 1).toUpperCase()}
+                  </span>
+                  <span><b>{r.fullName}</b></span>
+                </div>
+              </td>
+              <td>{r.employeeCode || '—'}</td>
+              <td>{r.department || '—'}</td>
+              <td>{moneyExact(r.baseSalary)}</td>
+              <td>{moneyExact(r.workPay)}<small> ({r.totalWorkDays} công)</small></td>
+              <td>{moneyExact(r.bonusPay)}</td>
+              <td>{moneyExact(r.overtimePay)}</td>
+              <td>{moneyExact(r.grossPay)}</td>
+              <td>−{moneyExact(r.tax)}</td>
+              <td><b>{moneyExact(r.netPay)}</b></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
   return null;
 }
 function RoleBadge({ role }) { return <span className={`role-badge ${String(role).toLowerCase()}`}>{({ ADMIN: 'Admin', MANAGER: 'Quản lý', EMPLOYEE: 'Nhân viên' })[role] || role}</span>; }
