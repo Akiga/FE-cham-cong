@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, CalendarDays, CheckCircle, Clock, Download, Edit3, Eye, EyeOff, ChevronRight,
-  LogOut, MapPin, Plus, RefreshCw, Search, Users, Wallet, X, XCircle,
+  LogOut, MapPin, Plus, RefreshCw, Search, Users, X, XCircle,
   Building2, BriefcaseBusiness, UserRound, Ban, Check, Filter
 } from 'lucide-react';
 import './style.css';
@@ -11,14 +11,12 @@ const NAV = [
   ['dashboard', 'Tổng quan', Activity], ['attendance', 'Chấm công', MapPin],
   ['employees', 'Nhân viên', Users], ['locations', 'Chi nhánh', Building2],
   ['shifts', 'Ca làm', Clock], ['leaves', 'Nghỉ phép', CalendarDays],
-  ['overtime', 'Tăng ca', BriefcaseBusiness], ['timesheet', 'Bảng công', CheckCircle], ['payroll', 'Bảng lương', Wallet]
+  ['overtime', 'Tăng ca', BriefcaseBusiness], ['timesheet', 'Bảng công', CheckCircle]
 ];
 const tabLabel = (id, role) =>
   id === 'attendance' && (role === 'ADMIN' || role === 'MANAGER')
     ? 'Quản lý chấm công'
     : (NAV.find(item => item[0] === id)?.[1] || '');
-const money = n => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(n) || 0);
-const moneyExact = n => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(n) || 0);
 const date = v => v ? new Date(v).toLocaleDateString('vi-VN') : '—';
 const dateTime = v => v ? new Date(v).toLocaleString('vi-VN') : '—';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -28,7 +26,7 @@ const statusText = v => ({ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', R
 const tone = s => 'tone-' + ((String(s || 'N').codePointAt(0) || 0) % 5);
 const pad2 = n => String(n).padStart(2, '0');
 
-const EMPTY_EMPLOYEE = { employeeCode: '', fullName: '', email: '', password: '', phone: '', gender: '', dateOfBirth: '', address: '', department: '', position: '', hireDate: today(), role: 'EMPLOYEE', baseSalary: 0, locationId: '' };
+const EMPTY_EMPLOYEE = { employeeCode: '', fullName: '', email: '', password: '', phone: '', gender: '', dateOfBirth: '', address: '', department: '', position: '', hireDate: today(), role: 'EMPLOYEE', locationId: '' };
 const EMPTY_LOCATION = { name: '', address: '', latitude: '', longitude: '', radius: 150 };
 const EMPTY_SHIFT = { name: '', startTime: '08:00', endTime: '17:00', breakMins: 60 };
 
@@ -71,7 +69,6 @@ export default function App() {
     if (id === 'employees') return canSeeEmployees;
     if (id === 'locations') return isAdmin;
     if (id === 'shifts') return canReview;
-    if (id === 'payroll' || id === 'timesheet') return true;
     return true;
   });
   const headers = useMemo(() => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }), [token]);
@@ -137,8 +134,8 @@ export default function App() {
       } else {
         const params = new URLSearchParams();
         if (tab === 'attendance') { if (filterFrom) params.set('from', filterFrom); if (filterTo) params.set('to', filterTo); }
-        if (['payroll', 'timesheet'].includes(tab) && filterMonth) params.set('month', filterMonth);
-        const routes = { employees: '/employees', attendance: '/attendance', locations: '/locations', shifts: '/shifts', leaves: '/leaves', overtime: '/overtime', payroll: '/payroll', timesheet: '/payroll' };
+        if (tab === 'timesheet' && filterMonth) params.set('month', filterMonth);
+        const routes = { employees: '/employees', attendance: '/attendance', locations: '/locations', shifts: '/shifts', leaves: '/leaves', overtime: '/overtime', timesheet: '/timesheet' };
         const result = await api(`${routes[tab]}${params.size ? `?${params}` : ''}`);
         setData(Array.isArray(result) ? result : []);
       }
@@ -180,7 +177,6 @@ export default function App() {
       let path = ''; let method = 'POST';
       if (tab === 'employees') {
         path = editing ? `/employees/${editing.id}` : '/employees'; method = editing ? 'PATCH' : 'POST';
-        ['baseSalary'].forEach(k => payload[k] = Number(payload[k] || 0));
         if (!payload.locationId) payload.locationId = null;
         if (editing && !payload.password) delete payload.password;
         if (editing) delete payload.id;
@@ -307,10 +303,10 @@ export default function App() {
     }
   }
 
-  async function exportPayroll() {
+  async function exportTimesheet() {
   try {
     const response = await fetch(
-      `${API}/payroll/export?month=${encodeURIComponent(filterMonth)}&type=${tab === 'payroll' ? 'salary' : 'timesheet'}`,
+      `${API}/timesheet/export?month=${encodeURIComponent(filterMonth)}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -329,11 +325,11 @@ export default function App() {
     const a = document.createElement('a');
 
     a.href = url;
-    a.download = `${tab === 'payroll' ? 'bang-luong' : 'bang-cong'}-${filterMonth}.xlsx`;
+    a.download = `bang-cong-${filterMonth}.xlsx`;
     a.click();
 
     URL.revokeObjectURL(url);
-    notify(tab === 'payroll' ? 'Đã xuất bảng lương' : 'Đã xuất bảng công');
+    notify('Đã xuất bảng công');
   } catch (e) {
     notify(e.message, true);
   }
@@ -446,9 +442,9 @@ export default function App() {
             ))}
           </select>
 <input className="filter-input" type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} aria-label="Từ ngày"/><input className="filter-input" type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} aria-label="Đến ngày"/>{canReview && <button className="primary" onClick={() => { setManualForm(prev => ({ ...prev, employeeId: employees.find(x => x.role === 'EMPLOYEE')?.id || '' })); setShowManualForm(v => !v); }}>+ Chấm công thủ công</button>}</>}
-          {['payroll', 'timesheet'].includes(tab) && <input className="filter-input" type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />}
-          {['payroll', 'timesheet'].includes(tab) && canReview && (
-            <button className="outline" onClick={exportPayroll}>
+          {tab === 'timesheet' && <input className="filter-input" type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />}
+          {tab === 'timesheet' && canReview && (
+            <button className="outline" onClick={exportTimesheet}>
               <Download size={17} /> Xuất Excel
             </button>
           )}
@@ -497,10 +493,10 @@ export default function App() {
 }
 
 function tabDescription(tab, role) {
-  const descriptions = { employees: role === 'ADMIN' ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.' : 'Danh sách nhân viên thuộc chi nhánh được phân công.', attendance: 'Theo dõi lịch sử vào ca và ra ca.', locations: 'Quản lý địa điểm và phạm vi chấm công GPS.', shifts: 'Thiết lập thời gian làm việc và thời gian nghỉ.', leaves: 'Theo dõi và xử lý các yêu cầu nghỉ phép.', overtime: 'Theo dõi và xử lý yêu cầu làm thêm giờ.', timesheet: 'Tổng hợp ngày công, giờ cộng thêm, giờ tăng ca và ngày nghỉ của nhân viên.', payroll: 'Tiền lương theo công, giờ cộng thêm và tăng ca (đã trừ thuế thu nhập 10%).' };
+  const descriptions = { employees: role === 'ADMIN' ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.' : 'Danh sách nhân viên thuộc chi nhánh được phân công.', attendance: 'Theo dõi lịch sử vào ca và ra ca.', locations: 'Quản lý địa điểm và phạm vi chấm công GPS.', shifts: 'Thiết lập thời gian làm việc và thời gian nghỉ.', leaves: 'Theo dõi và xử lý các yêu cầu nghỉ phép.', overtime: 'Theo dõi và xử lý yêu cầu làm thêm giờ.', timesheet: 'Tổng hợp ngày công, giờ cộng thêm, giờ tăng ca và ngày nghỉ của nhân viên.' };
   return descriptions[tab] || '';
 }
-function createLabel(tab) { return ({ employees: 'Thêm nhân viên', locations: 'Thêm chi nhánh', shifts: 'Tạo ca làm', leaves: 'Tạo đơn nghỉ phép', overtime: 'Tạo đơn tăng ca', payroll: 'Nhập bảng lương' })[tab] || 'Thêm mới'; }
+function createLabel(tab) { return ({ employees: 'Thêm nhân viên', locations: 'Thêm chi nhánh', shifts: 'Tạo ca làm', leaves: 'Tạo đơn nghỉ phép', overtime: 'Tạo đơn tăng ca' })[tab] || 'Thêm mới'; }
 
 function useNow() {
   const [now, setNow] = useState(() => new Date());
@@ -587,7 +583,7 @@ function Dashboard({ stats, role, locations, user, checkedIn, checkInTime, check
       <StatCard icon={Users} label="Nhân viên" value={stats?.employees ?? '—'} tone="blue" />
       <StatCard icon={Clock} label="Lượt chấm hôm nay" value={stats?.attendance?.length ?? 0} tone="purple" />
       <StatCard icon={CalendarDays} label="Đơn nghỉ chờ duyệt" value={stats?.pendingLeaves ?? '—'} tone="orange" />
-      <StatCard icon={Wallet} label="Đơn tăng ca chờ duyệt" value={stats?.pendingOvertime ?? '—'} tone="green" />
+      <StatCard icon={BriefcaseBusiness} label="Đơn tăng ca chờ duyệt" value={stats?.pendingOvertime ?? '—'} tone="green" />
     </div>
 
     {isEmployee && <div className="dashboard-grid">
@@ -625,7 +621,7 @@ function FormPanel({ tab, form, setField, onSubmit, onClose, busy, editing, loca
   const select = (key, label, options, required = false) => <label className="form-field" key={key}><span>{label}{required && <i> *</i>}</span><select value={form[key] ?? ''} onChange={e => setField(key, e.target.value)} required={required}><option value="">-- Chọn --</option>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
   const textarea = (key, label, required = false) => <label className="form-field full-field" key={key}><span>{label}{required && <i> *</i>}</span><textarea rows="2" value={form[key] ?? ''} onChange={e => setField(key, e.target.value)} required={required}/></label>;
   let fields = [];
-  if (tab === 'employees') fields = [field('employeeCode', 'Mã nhân viên'), field('fullName', 'Họ và tên', 'text', true), field('email', 'Email', 'email', true), !editing && field('password', 'Mật khẩu', 'password', true, { minLength: 8 }), editing && field('password', 'Mật khẩu mới (để trống nếu không đổi)', 'password'), field('phone', 'Số điện thoại', 'tel'), select('gender', 'Giới tính', [{ value: 'MALE', label: 'Nam' }, { value: 'FEMALE', label: 'Nữ' }, { value: 'OTHER', label: 'Khác' }]), field('dateOfBirth', 'Ngày sinh', 'date'), field('hireDate', 'Ngày vào làm', 'date'), field('department', 'Phòng ban'), field('position', 'Chức vụ'), field('baseSalary', 'Lương cơ bản', 'number', false, { min: 0 }), select('role', 'Vai trò', [{ value: 'EMPLOYEE', label: 'Nhân viên' }, { value: 'MANAGER', label: 'Quản lý' }, ...(isAdmin ? [{ value: 'ADMIN', label: 'Admin' }] : [])], true), select('locationId', 'Chi nhánh', locations.filter(x => x.active).map(x => ({ value: x.id, label: x.name })), form.role !== 'ADMIN'), textarea('address', 'Địa chỉ')].filter(Boolean);
+  if (tab === 'employees') fields = [field('employeeCode', 'Mã nhân viên'), field('fullName', 'Họ và tên', 'text', true), field('email', 'Email', 'email', true), !editing && field('password', 'Mật khẩu', 'password', true, { minLength: 8 }), editing && field('password', 'Mật khẩu mới (để trống nếu không đổi)', 'password'), field('phone', 'Số điện thoại', 'tel'), select('gender', 'Giới tính', [{ value: 'MALE', label: 'Nam' }, { value: 'FEMALE', label: 'Nữ' }, { value: 'OTHER', label: 'Khác' }]), field('dateOfBirth', 'Ngày sinh', 'date'), field('hireDate', 'Ngày vào làm', 'date'), field('department', 'Phòng ban'), field('position', 'Chức vụ'), select('role', 'Vai trò', [{ value: 'EMPLOYEE', label: 'Nhân viên' }, { value: 'MANAGER', label: 'Quản lý' }, ...(isAdmin ? [{ value: 'ADMIN', label: 'Admin' }] : [])], true), select('locationId', 'Chi nhánh', locations.filter(x => x.active).map(x => ({ value: x.id, label: x.name })), form.role !== 'ADMIN'), textarea('address', 'Địa chỉ')].filter(Boolean);
   if (tab === 'locations') fields = [field('name', 'Tên chi nhánh', 'text', true), field('address', 'Địa chỉ'), field('latitude', 'Vĩ độ', 'number', true, { step: 'any', min: -90, max: 90 }), field('longitude', 'Kinh độ', 'number', true, { step: 'any', min: -180, max: 180 }), field('radius', 'Bán kính chấm công (m)', 'number', true, { min: 1 })];
   if (tab === 'shifts') fields = [field('name', 'Tên ca làm', 'text', true), field('startTime', 'Giờ bắt đầu', 'time', true), field('endTime', 'Giờ kết thúc', 'time', true), field('breakMins', 'Thời gian nghỉ (phút)', 'number', false, { min: 0 })];
   if (tab === 'leaves') fields = [field('fromDate', 'Từ ngày', 'date', true), field('toDate', 'Đến ngày', 'date', true), textarea('reason', 'Lý do nghỉ phép', true)];
@@ -653,7 +649,7 @@ function DataTable({ tab, rows, employees = [], currentUser, locations = [], att
     const employee = employees.find(e => String(e.id) === String(userId));
     return employee?.fullName || userId;
   };
-  if (tab === 'employees') return <table><thead><tr><th>Nhân viên</th><th>Mã NV</th><th>Phòng ban</th><th>Chức vụ</th><th>Chi nhánh</th><th>Vai trò</th><th>Lương cơ bản</th><th>Trạng thái</th>{isAdmin && <th>Thao tác</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><div className="person-cell"><span className={`table-avatar ${tone(r.fullName)}`}>{(r.fullName || 'N').slice(0,1)}</span><span><b>{r.fullName}</b><small>{r.email}</small></span></div></td><td>{r.employeeCode || '—'}</td><td>{r.department || '—'}</td><td>{r.position || '—'}</td><td>{r.location?.name || '—'}</td><td><RoleBadge role={r.role}/></td><td>{money(r.baseSalary)}</td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td>{isAdmin && <td><div className="row-actions"><button className="action-icon" title="Chỉnh sửa" onClick={() => onEdit(r)}><Edit3 size={16}/></button><button className="action-icon" title={r.active ? 'Khóa' : 'Mở khóa'} onClick={() => onToggleEmployee(r)}>{r.active ? <Ban size={16}/> : <Check size={16}/>}</button></div></td>}</tr>)}</tbody></table>;
+  if (tab === 'employees') return <table><thead><tr><th>Nhân viên</th><th>Mã NV</th><th>Phòng ban</th><th>Chức vụ</th><th>Chi nhánh</th><th>Vai trò</th><th>Trạng thái</th>{isAdmin && <th>Thao tác</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><div className="person-cell"><span className={`table-avatar ${tone(r.fullName)}`}>{(r.fullName || 'N').slice(0,1)}</span><span><b>{r.fullName}</b><small>{r.email}</small></span></div></td><td>{r.employeeCode || '—'}</td><td>{r.department || '—'}</td><td>{r.position || '—'}</td><td>{r.location?.name || '—'}</td><td><RoleBadge role={r.role}/></td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td>{isAdmin && <td><div className="row-actions"><button className="action-icon" title="Chỉnh sửa" onClick={() => onEdit(r)}><Edit3 size={16}/></button><button className="action-icon" title={r.active ? 'Khóa' : 'Mở khóa'} onClick={() => onToggleEmployee(r)}>{r.active ? <Ban size={16}/> : <Check size={16}/>}</button></div></td>}</tr>)}</tbody></table>;
   if (tab === 'locations') return <table><thead><tr><th>Chi nhánh</th><th>Địa chỉ</th><th>Vĩ độ</th><th>Kinh độ</th><th>Bán kính</th><th>Trạng thái</th>{isAdmin && <th>Thao tác</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><b>{r.name}</b></td><td>{r.address || '—'}</td><td>{r.latitude}</td><td>{r.longitude}</td><td>{r.radius} m</td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td>{isAdmin && <td><div className="row-actions"><button className="action-icon" onClick={() => onEdit(r)} title="Sửa"><Edit3 size={16}/></button><button className="action-icon" onClick={() => onToggleLocation(r)} title="Bật/tắt">{r.active ? <Ban size={16}/> : <Check size={16}/>}</button></div></td>}</tr>)}</tbody></table>;
   if (tab === 'shifts') return <table><thead><tr><th>Tên ca</th><th>Bắt đầu</th><th>Kết thúc</th><th>Nghỉ giữa ca</th><th>Trạng thái</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><b>{r.name}</b></td><td>{r.startTime}</td><td>{r.endTime}</td><td>{r.breakMins} phút</td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td></tr>)}</tbody></table>;
   if (tab === 'attendance') {
@@ -782,49 +778,6 @@ const attendanceRows = [...grouped.values()]
               <td>{r.overtimeSunday2 || 0} giờ</td>
               <td>{r.overtimeSundayNight35 || 0} giờ</td>
               <td>{r.leaveDays} ngày</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-  if (tab === 'payroll') {
-    return (
-      <table>
-        <thead>
-          <tr>
-            <th>Nhân viên</th>
-            <th>Mã nhân viên</th>
-            <th>Phòng ban</th>
-            <th>Lương cơ bản</th>
-            <th>Lương theo công</th>
-            <th>Tiền giờ cộng thêm</th>
-            <th>Tiền tăng ca</th>
-            <th>Tổng thu nhập</th>
-            <th>Thuế thu nhập ({Math.round((rows[0]?.taxRate ?? 0.1) * 100)}%)</th>
-            <th>Thực nhận</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r.id}>
-              <td>
-                <div className="person-cell">
-                  <span className={`table-avatar ${tone(r.fullName)}`}>
-                    {(r.fullName || 'N').slice(0, 1).toUpperCase()}
-                  </span>
-                  <span><b>{r.fullName}</b></span>
-                </div>
-              </td>
-              <td>{r.employeeCode || '—'}</td>
-              <td>{r.department || '—'}</td>
-              <td>{moneyExact(r.baseSalary)}</td>
-              <td>{moneyExact(r.workPay)}<small> ({r.totalWorkDays} công)</small></td>
-              <td>{moneyExact(r.bonusPay)}</td>
-              <td>{moneyExact(r.overtimePay)}</td>
-              <td>{moneyExact(r.grossPay)}</td>
-              <td>−{moneyExact(r.tax)}</td>
-              <td><b>{moneyExact(r.netPay)}</b></td>
             </tr>
           ))}
         </tbody>
