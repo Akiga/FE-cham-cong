@@ -58,6 +58,7 @@ export default function App() {
     employeeId: '', date: today(), mode: 'FULL_DAY',
     checkInTime: '08:00', checkOutTime: '17:00', time: '08:00', extraHours: '1', reason: ''
   });
+  const [editDay, setEditDay] = useState(null);
   const expiredRef = useRef(false);
 
   const role = user?.role;
@@ -251,6 +252,40 @@ export default function App() {
       enableHighAccuracy: true,
       timeout: 15000
     });
+  }
+
+  function openEditDay(row) {
+    const hhmm = v => v ? v.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Ho_Chi_Minh' }) : '';
+    setEditDay({
+      employeeId: row.userId,
+      date: row.day,
+      checkInTime: hhmm(row.checkIn),
+      checkOutTime: hhmm(row.checkOut),
+      workFraction: String(row.workFraction ?? 1),
+      extraHours: row.manualBonus > 0 ? String(Number(row.manualBonus.toFixed(2))) : '',
+      reason: ''
+    });
+    setShowManualForm(false);
+    notify('');
+  }
+
+  async function saveEditDay(e) {
+    e.preventDefault();
+    setBusy(true);
+    notify('');
+    try {
+      await api('/attendance/day', {
+        method: 'PATCH',
+        body: JSON.stringify({ ...editDay, workFraction: Number(editDay.workFraction) })
+      });
+      setEditDay(null);
+      notify('Đã cập nhật giờ công');
+      await load();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveManualAttendance(e) {
@@ -455,6 +490,25 @@ export default function App() {
             )}
         </div></section>
 
+        {editDay && tab === 'attendance' && canReview && (
+          <section className="form-panel">
+            <div className="form-panel-head">
+              <div><h3>Chỉnh sửa giờ công</h3><p>{(employees.find(x => x.id === editDay.employeeId)?.fullName) || 'Nhân viên'} · {date(`${editDay.date}T00:00:00`)}. Để trống giờ vào/ra nếu muốn xóa; giờ cộng thêm để trống hoặc 0 là xóa.</p></div>
+              <button className="icon-button" onClick={() => setEditDay(null)}><X size={18}/></button>
+            </div>
+            <form onSubmit={saveEditDay}>
+              <div className="form-grid">
+                <label className="form-field"><span>Giờ vào</span><input type="time" value={editDay.checkInTime} onChange={e => setEditDay(p => ({ ...p, checkInTime: e.target.value }))}/></label>
+                <label className="form-field"><span>Giờ ra</span><input type="time" value={editDay.checkOutTime} onChange={e => setEditDay(p => ({ ...p, checkOutTime: e.target.value }))}/></label>
+                <label className="form-field"><span>Số công</span><select value={editDay.workFraction} onChange={e => setEditDay(p => ({ ...p, workFraction: e.target.value }))}><option value="1">1 công</option><option value="0.5">0,5 công</option><option value="0">0 công</option></select></label>
+                <label className="form-field"><span>Giờ cộng thêm</span><input type="number" min="0" max="8" step="0.25" value={editDay.extraHours} onChange={e => setEditDay(p => ({ ...p, extraHours: e.target.value }))}/></label>
+                <label className="form-field full-field"><span>Lý do chỉnh sửa <i> *</i></span><textarea required rows="2" value={editDay.reason} onChange={e => setEditDay(p => ({ ...p, reason: e.target.value }))} placeholder="Ví dụ: Nhân viên chấm sai giờ, quên chấm ra..."/></label>
+              </div>
+              <div className="form-actions"><button type="button" className="outline" onClick={() => setEditDay(null)}>Hủy</button><button className="primary" disabled={busy}>{busy ? 'Đang lưu...' : 'Lưu chỉnh sửa'}</button></div>
+            </form>
+          </section>
+        )}
+
         {showManualForm && tab === 'attendance' && canReview && (
           <section className="form-panel">
             <div className="form-panel-head">
@@ -484,7 +538,7 @@ export default function App() {
   rows={filteredData}
   employees={employees}
   locations={locations}
-  attendanceLocationId={attendanceLocationId} currentUser={user} isAdmin={isAdmin} canReview={canReview} onEdit={openEdit} onToggleEmployee={toggleEmployee} onToggleLocation={toggleLocation} onReview={reviewRequest} reviewNote={reviewNote} setReviewNote={setReviewNote} onDeleteExtra={deleteExtraHours} /> </div>}
+  attendanceLocationId={attendanceLocationId} currentUser={user} isAdmin={isAdmin} canReview={canReview} onEdit={openEdit} onToggleEmployee={toggleEmployee} onToggleLocation={toggleLocation} onReview={reviewRequest} reviewNote={reviewNote} setReviewNote={setReviewNote} onDeleteExtra={deleteExtraHours} onEditDay={openEditDay} /> </div>}
         </section>
       </>}
       <footer className="app-footer">© {new Date().getFullYear()} WorkTime · Hệ thống quản lý chấm công</footer>
@@ -638,7 +692,7 @@ function FormPanel({ tab, form, setField, onSubmit, onClose, busy, editing, loca
   return <section className="form-panel"><div className="form-panel-head"><div><h3>{editing ? 'Cập nhật thông tin' : createLabel(tab)}</h3><p>Các trường có dấu * là bắt buộc.</p></div><button className="icon-button" onClick={onClose}><X size={18}/></button></div><form onSubmit={onSubmit}><div className="form-grid">{fields}</div><div className="form-actions"><button type="button" className="outline" onClick={onClose}>Hủy</button><button className="primary" disabled={busy}>{busy ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo mới'}</button></div></form></section>;
 }
 
-function DataTable({ tab, rows, employees = [], currentUser, locations = [], attendanceLocationId = '', isAdmin, canReview, onEdit, onToggleEmployee, onToggleLocation, onReview, reviewNote, setReviewNote, onDeleteExtra }) {
+function DataTable({ tab, rows, employees = [], currentUser, locations = [], attendanceLocationId = '', isAdmin, canReview, onEdit, onToggleEmployee, onToggleLocation, onReview, reviewNote, setReviewNote, onDeleteExtra, onEditDay }) {
   const getEmployeeName = (row) => {
     if (row?.user?.fullName) return row.user.fullName;
     const userId = row?.userId;
@@ -734,9 +788,9 @@ const attendanceRows = [...grouped.values()]
   })
   .sort((a, b) => b.day.localeCompare(a.day));
     const timeOnly = value => value ? value.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—';
-    return <table><thead><tr><th>Họ tên</th><th>Chi nhánh</th><th>Thời gian vào</th><th>Thời gian ra</th><th>Công</th><th>Giờ cộng thêm</th><th>Hình thức</th><th>Ghi chú</th></tr></thead><tbody>{attendanceRows.map(r => <tr key={r.key}><td><div className="person-cell"><span className={`table-avatar ${tone(getEmployeeName({ userId: r.userId }))}`}>{(getEmployeeName({ userId: r.userId }) || 'N').slice(0, 1).toUpperCase()}</span><span><b>{getEmployeeName({ userId: r.userId })}</b><small>{r.day === 'unknown-date' ? 'Không rõ ngày' : date(`${r.day}T00:00:00`)}</small></span></div></td>
+    return <table><thead><tr><th>Họ tên</th><th>Chi nhánh</th><th>Thời gian vào</th><th>Thời gian ra</th><th>Công</th><th>Giờ cộng thêm</th><th>Hình thức</th><th>Ghi chú</th>{canReview && <th>Thao tác</th>}</tr></thead><tbody>{attendanceRows.map(r => <tr key={r.key}><td><div className="person-cell"><span className={`table-avatar ${tone(getEmployeeName({ userId: r.userId }))}`}>{(getEmployeeName({ userId: r.userId }) || 'N').slice(0, 1).toUpperCase()}</span><span><b>{getEmployeeName({ userId: r.userId })}</b><small>{r.day === 'unknown-date' ? 'Không rõ ngày' : date(`${r.day}T00:00:00`)}</small></span></div></td>
 <td>{getBranchName(r.userId, r.locationId)}</td>
-<td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td><td>{r.workFraction === null ? '—' : r.workFraction === 0.5 ? '0,5' : '1'}</td><td>{r.manualBonus > 0 ? `+${String(Number(r.manualBonus.toFixed(2))).replace('.', ',')} giờ` : '—'}</td><td>{r.manual || r.workFraction === null ? 'Thủ công' : 'GPS'}</td><td>{r.notes.join(' · ') || '—'}{canReview && r.extraId && <button className="reject-btn" style={{ marginLeft: 8 }} title="Xóa giờ cộng thêm thủ công" onClick={() => onDeleteExtra(r.extraId)}><X size={14}/></button>}</td></tr>)}</tbody></table>;
+<td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td><td>{r.workFraction === null ? '—' : r.workFraction === 0.5 ? '0,5' : r.workFraction === 0 ? '0' : '1'}</td><td>{r.manualBonus > 0 ? `+${String(Number(r.manualBonus.toFixed(2))).replace('.', ',')} giờ` : '—'}</td><td>{r.manual || r.workFraction === null ? 'Thủ công' : 'GPS'}</td><td>{r.notes.join(' · ') || '—'}{canReview && r.extraId && <button className="reject-btn" style={{ marginLeft: 8 }} title="Xóa giờ cộng thêm thủ công" onClick={() => onDeleteExtra(r.extraId)}><X size={14}/></button>}</td>{canReview && <td><div className="row-actions"><button className="action-icon" title="Chỉnh sửa giờ công" onClick={() => onEditDay(r)}><Edit3 size={16}/></button></div></td>}</tr>)}</tbody></table>;
   }
   if (tab === 'leaves' || tab === 'overtime') return <table><thead><tr><th>Nhân viên</th>{tab === 'leaves' ? <><th>Từ ngày</th><th>Đến ngày</th></> : <><th>Ngày tăng ca</th><th>Loại tăng ca</th><th>Số giờ</th></>}<th>Lý do</th><th>Trạng thái</th><th>Ghi chú duyệt</th>{canReview && <th>Xử lý</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{getEmployeeName(r)}</td>{tab === 'leaves' ? <><td>{date(r.fromDate)}</td><td>{date(r.toDate)}</td></> : <><td>{date(r.workDate)}</td><td>{({
       WEEKDAY_15: 'Ngày thường (x1.5)',
