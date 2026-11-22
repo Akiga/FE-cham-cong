@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, CalendarDays, CheckCircle, Clock, Download, Edit3, Eye, EyeOff, ChevronRight,
+  Activity, CalendarDays, CheckCircle, Clock, Download, Edit3,
   LogOut, MapPin, Plus, RefreshCw, Search, Users, X, XCircle,
-  Building2, BriefcaseBusiness, UserRound, Ban, Check, Filter
+  Building2, BriefcaseBusiness, Ban, Check, Filter
 } from 'lucide-react';
 import './style.css';
+import Dashboard from './components/Dashboard';
+import FormPanel from './components/FormPanel';
+import DataTable from './components/DataTable';
+import LoginPage from './components/LoginPage';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const NAV = [
@@ -377,32 +381,17 @@ export default function App() {
     return data.filter(row => Object.values(row).some(v => String(v ?? '').toLowerCase().includes(q)));
   }, [data, search]);
 
-  if (!token) return <main className="login-page">
-    <section className="login-art">
-      <div className="brand on-dark"><span className="brand-mark"><Clock size={20} /></span><div><b>WorkTime</b><small>Quản lý chấm công</small></div></div>
-      <div className="login-art-body">
-        <LoginClock />
-        <h2>Chấm công vào ra chỉ trong một chạm.</h2>
-        <p>Ghi nhận bằng GPS, duyệt nghỉ phép và tăng ca, tổng hợp ngày công cuối tháng.</p>
-      </div>
-      <small className="login-art-foot">© {new Date().getFullYear()} WorkTime</small>
-    </section>
-    <section className="login-panel">
-      <form className="login-card" onSubmit={login}>
-        <h1>Đăng nhập</h1>
-        <p>Dùng email công ty để vào WorkTime.</p>
-        <label htmlFor="login-email">Email</label>
-        <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" autoComplete="username" required />
-        <label htmlFor="login-password">Mật khẩu</label>
-        <div className="password-field">
-          <input id="login-password" type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Nhập mật khẩu" autoComplete="current-password" required />
-          <button type="button" className="pw-toggle" onClick={() => setShowPw(v => !v)} aria-label={showPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>{showPw ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-        </div>
-        {error && <div className="alert error" role="alert">{error}</div>}
-        <button className="primary full" disabled={busy}>{busy ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
-      </form>
-    </section>
-  </main>;
+  if (!token) return <LoginPage
+    email={email}
+    password={password}
+    showPw={showPw}
+    busy={busy}
+    error={error}
+    onEmailChange={e => setEmail(e.target.value)}
+    onPasswordChange={e => setPassword(e.target.value)}
+    onTogglePassword={() => setShowPw(v => !v)}
+    onSubmit={login}
+  />;
 
   const checkInRecord = (stats?.attendance || []).find(r =>
     String(r.type || '').toUpperCase() === 'CHECK_IN' && (!r.userId || String(r.userId) === String(user?.id)));
@@ -490,25 +479,6 @@ export default function App() {
             )}
         </div></section>
 
-        {editDay && tab === 'attendance' && canReview && (
-          <section className="form-panel">
-            <div className="form-panel-head">
-              <div><h3>Chỉnh sửa giờ công</h3><p>{(employees.find(x => x.id === editDay.employeeId)?.fullName) || 'Nhân viên'} · {date(`${editDay.date}T00:00:00`)}. Để trống giờ vào/ra nếu muốn xóa; giờ cộng thêm để trống hoặc 0 là xóa.</p></div>
-              <button className="icon-button" onClick={() => setEditDay(null)}><X size={18}/></button>
-            </div>
-            <form onSubmit={saveEditDay}>
-              <div className="form-grid">
-                <label className="form-field"><span>Giờ vào</span><input type="time" value={editDay.checkInTime} onChange={e => setEditDay(p => ({ ...p, checkInTime: e.target.value }))}/></label>
-                <label className="form-field"><span>Giờ ra</span><input type="time" value={editDay.checkOutTime} onChange={e => setEditDay(p => ({ ...p, checkOutTime: e.target.value }))}/></label>
-                <label className="form-field"><span>Số công</span><select value={editDay.workFraction} onChange={e => setEditDay(p => ({ ...p, workFraction: e.target.value }))}><option value="1">1 công</option><option value="0.5">0,5 công</option><option value="0">0 công</option></select></label>
-                <label className="form-field"><span>Giờ cộng thêm</span><input type="number" min="0" max="8" step="0.25" value={editDay.extraHours} onChange={e => setEditDay(p => ({ ...p, extraHours: e.target.value }))}/></label>
-                <label className="form-field full-field"><span>Lý do chỉnh sửa <i> *</i></span><textarea required rows="2" value={editDay.reason} onChange={e => setEditDay(p => ({ ...p, reason: e.target.value }))} placeholder="Ví dụ: Nhân viên chấm sai giờ, quên chấm ra..."/></label>
-              </div>
-              <div className="form-actions"><button type="button" className="outline" onClick={() => setEditDay(null)}>Hủy</button><button className="primary" disabled={busy}>{busy ? 'Đang lưu...' : 'Lưu chỉnh sửa'}</button></div>
-            </form>
-          </section>
-        )}
-
         {showManualForm && tab === 'attendance' && canReview && (
           <section className="form-panel">
             <div className="form-panel-head">
@@ -538,7 +508,7 @@ export default function App() {
   rows={filteredData}
   employees={employees}
   locations={locations}
-  attendanceLocationId={attendanceLocationId} currentUser={user} isAdmin={isAdmin} canReview={canReview} onEdit={openEdit} onToggleEmployee={toggleEmployee} onToggleLocation={toggleLocation} onReview={reviewRequest} reviewNote={reviewNote} setReviewNote={setReviewNote} onDeleteExtra={deleteExtraHours} onEditDay={openEditDay} /> </div>}
+  attendanceLocationId={attendanceLocationId} currentUser={user} isAdmin={isAdmin} canReview={canReview} onEdit={openEdit} onToggleEmployee={toggleEmployee} onToggleLocation={toggleLocation} onReview={reviewRequest} reviewNote={reviewNote} setReviewNote={setReviewNote} onDeleteExtra={deleteExtraHours} onEditDay={openEditDay} editDay={editDay} setEditDay={setEditDay} onSaveEditDay={saveEditDay} busy={busy} /> </div>}
         </section>
       </>}
       <footer className="app-footer">© {new Date().getFullYear()} WorkTime · Hệ thống quản lý chấm công</footer>
@@ -551,294 +521,3 @@ function tabDescription(tab, role) {
   return descriptions[tab] || '';
 }
 function createLabel(tab) { return ({ employees: 'Thêm nhân viên', locations: 'Thêm chi nhánh', shifts: 'Tạo ca làm', leaves: 'Tạo đơn nghỉ phép', overtime: 'Tạo đơn tăng ca' })[tab] || 'Thêm mới'; }
-
-function useNow() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
-
-function Digits({ text }) {
-  return <span className="digits" aria-hidden="true">{[...text].map((ch, i) => <span key={i} className={ch === ':' ? 'colon' : 'digit'}>{ch}</span>)}</span>;
-}
-
-// Thanh tiến độ ngày làm việc: ca sáng 08:00–12:00, nghỉ trưa, ca chiều 13:00–17:00.
-function DayTrack({ now }) {
-  const hour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-  const segments = [{ from: 8, to: 12 }, { from: 12, to: 13, lunch: true }, { from: 13, to: 17 }];
-  const fill = s => Math.max(0, Math.min(1, (hour - s.from) / (s.to - s.from)));
-  const ticks = [[8, '08:00'], [12, '12:00'], [13, '13:00'], [17, '17:00']];
-  return <div className="day-track" role="img" aria-label="Tiến độ ngày làm việc từ 08:00 đến 17:00">
-    <div className="track-bars">{segments.map(s => <div key={s.from} className={s.lunch ? 'track-seg lunch' : 'track-seg'} style={{ flex: s.to - s.from }}>{!s.lunch && <i style={{ width: `${fill(s) * 100}%` }} />}</div>)}</div>
-    <div className="track-ticks">{ticks.map(([h, label]) => <span key={h} style={{ left: `${((h - 8) / 9) * 100}%` }}>{label}</span>)}</div>
-  </div>;
-}
-
-function ClockReadout({ now, greeting }) {
-  const dateText = now.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  return <div className="clock-readout">
-    {greeting && <p className="clock-greeting">{greeting}</p>}
-    <div className="clock-time" aria-label={now.toLocaleTimeString('vi-VN')}>
-      <span className="hm"><Digits text={`${pad2(now.getHours())}:${pad2(now.getMinutes())}`} /></span>
-      <span className="sec"><Digits text={pad2(now.getSeconds())} /></span>
-    </div>
-    <p className="clock-date">{dateText}</p>
-  </div>;
-}
-
-function LoginClock() {
-  const now = useNow();
-  return <div><ClockReadout now={now} /><DayTrack now={now} /></div>;
-}
-
-function QuickLink({ icon: Icon, title, hint, onClick }) {
-  return <button className="quick-link" onClick={onClick}><span className="ql-icon"><Icon size={18} /></span><span className="ql-text"><b>{title}</b><small>{hint}</small></span><ChevronRight size={18} className="ql-chevron" /></button>;
-}
-
-function ClockPanel({ user, isEmployee, checkedIn, checkInTime, checkedOut, checkOutTime, onPunch, busy, onNavigate }) {
-  const now = useNow();
-  const hour = now.getHours();
-  const hello = hour < 11 ? 'Chào buổi sáng' : hour < 13 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
-  const givenName = (user?.fullName || '').trim().split(/\s+/).pop();
-  const adminLinks = [
-    ['attendance', 'Quản lý chấm công', 'Lịch sử và chấm công thủ công', MapPin],
-    ['employees', 'Nhân viên', 'Danh sách nhân sự', Users],
-    ['leaves', 'Duyệt nghỉ phép', 'Xử lý đơn chờ duyệt', CalendarDays],
-    ['overtime', 'Duyệt tăng ca', 'Xử lý yêu cầu làm thêm', BriefcaseBusiness]
-  ];
-  return <section className="clock-panel">
-    <div>
-      <ClockReadout now={now} greeting={givenName ? `${hello}, ${givenName}` : hello} />
-      <DayTrack now={now} />
-    </div>
-    <div className="clock-side">
-      {isEmployee ? <>
-        <button className={checkedIn ? 'punch-btn in done' : 'punch-btn in'} onClick={() => onPunch('CHECK_IN')} disabled={busy || checkedIn}><CheckCircle size={26} /><span>{checkedIn ? 'Đã chấm công vào' : 'Chấm công vào'}<small>{checkedIn ? (checkInTime ? `Lúc ${checkInTime}` : 'Hôm nay') : 'Bắt đầu ca làm'}</small></span></button>
-        <button className={checkedOut ? 'punch-btn out done' : 'punch-btn out'} onClick={() => onPunch('CHECK_OUT')} disabled={busy || checkedOut}><LogOut size={26} /><span>{checkedOut ? 'Đã chấm công ra' : 'Chấm công ra'}<small>{checkedOut ? (checkOutTime ? `Lúc ${checkOutTime}` : 'Hôm nay') : 'Kết thúc ca làm'}</small></span></button>
-        <p className="clock-note">Bật GPS và đứng trong phạm vi chi nhánh khi chấm công.</p>
-      </> : <div className="action-grid">
-        {adminLinks.map(([id, title, hint, Icon]) => <button key={id} className="action-tile" onClick={() => onNavigate(id)}><Icon size={22} /><span><b>{title}</b><small>{hint}</small></span></button>)}
-      </div>}
-    </div>
-  </section>;
-}
-
-function Dashboard({ stats, role, locations, user, checkedIn, checkInTime, checkedOut, checkOutTime, onPunch, busy, onNavigate }) {
-  const isEmployee = role === 'EMPLOYEE';
-  const loc = isEmployee ? locations?.[0] : null;
-  const hasMap = loc && Number.isFinite(Number(loc.latitude)) && Number.isFinite(Number(loc.longitude));
-  return <div className="dashboard-content">
-    <ClockPanel user={user} isEmployee={isEmployee} checkedIn={checkedIn} checkInTime={checkInTime} checkedOut={checkedOut} checkOutTime={checkOutTime} onPunch={onPunch} busy={busy} onNavigate={onNavigate} />
-
-    <div className="stat-grid">
-      <StatCard icon={Users} label="Nhân viên" value={stats?.employees ?? '—'} tone="blue" />
-      <StatCard icon={Clock} label="Lượt chấm hôm nay" value={stats?.attendance?.length ?? 0} tone="purple" />
-      <StatCard icon={CalendarDays} label="Đơn nghỉ chờ duyệt" value={stats?.pendingLeaves ?? '—'} tone="orange" />
-      <StatCard icon={BriefcaseBusiness} label="Đơn tăng ca chờ duyệt" value={stats?.pendingOvertime ?? '—'} tone="green" />
-    </div>
-
-    {isEmployee && <div className="dashboard-grid">
-      <section className="map-card">
-        {hasMap ? <>
-          <iframe
-            title="Vị trí công ty"
-            src={`https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&z=16&output=embed`}
-            loading="lazy"
-            allowFullScreen
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-          <div className="map-info">
-            <b><MapPin size={17} /> {loc.name}</b>
-            <span>{loc.address || 'Địa chỉ chi nhánh chưa cập nhật'}</span>
-            <a href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`} target="_blank" rel="noreferrer">Xem đường đi trên Google Maps</a>
-          </div>
-        </> : <div className="map-empty"><MapPin size={28} /><span>Chưa có thông tin vị trí chi nhánh</span></div>}
-      </section>
-      <section className="dashboard-card">
-        <div className="card-heading"><h3>Truy cập nhanh</h3><p>Các khu vực bạn dùng thường xuyên</p></div>
-        <div className="quick-links">
-          <QuickLink icon={MapPin} title="Lịch sử chấm công" hint="Xem thời gian vào và ra" onClick={() => onNavigate('attendance')} />
-          <QuickLink icon={CalendarDays} title="Đơn nghỉ phép" hint="Gửi hoặc theo dõi đơn" onClick={() => onNavigate('leaves')} />
-          <QuickLink icon={BriefcaseBusiness} title="Đơn tăng ca" hint="Gửi yêu cầu làm thêm" onClick={() => onNavigate('overtime')} />
-        </div>
-      </section>
-    </div>}
-  </div>;
-}
-function StatCard({ icon: Icon, label, value, tone }) { return <article className="stat-card"><span className={`stat-icon ${tone}`}><Icon size={20}/></span><div><span>{label}</span><b>{value}</b></div></article>; }
-
-function FormPanel({ tab, form, setField, onSubmit, onClose, busy, editing, locations, employees, isAdmin }) {
-  const field = (key, label, type = 'text', required = false, extra = {}) => <label className="form-field" key={key}><span>{label}{required && <i> *</i>}</span><input type={type} value={form[key] ?? ''} onChange={e => setField(key, e.target.value)} required={required} {...extra}/></label>;
-  const select = (key, label, options, required = false) => <label className="form-field" key={key}><span>{label}{required && <i> *</i>}</span><select value={form[key] ?? ''} onChange={e => setField(key, e.target.value)} required={required}><option value="">-- Chọn --</option>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
-  const textarea = (key, label, required = false) => <label className="form-field full-field" key={key}><span>{label}{required && <i> *</i>}</span><textarea rows="2" value={form[key] ?? ''} onChange={e => setField(key, e.target.value)} required={required}/></label>;
-  let fields = [];
-  if (tab === 'employees') fields = [field('employeeCode', 'Mã nhân viên'), field('fullName', 'Họ và tên', 'text', true), field('email', 'Email', 'email', true), !editing && field('password', 'Mật khẩu', 'password', true, { minLength: 8 }), editing && field('password', 'Mật khẩu mới (để trống nếu không đổi)', 'password'), field('phone', 'Số điện thoại', 'tel'), select('gender', 'Giới tính', [{ value: 'MALE', label: 'Nam' }, { value: 'FEMALE', label: 'Nữ' }, { value: 'OTHER', label: 'Khác' }]), field('dateOfBirth', 'Ngày sinh', 'date'), field('hireDate', 'Ngày vào làm', 'date'), field('department', 'Phòng ban'), field('position', 'Chức vụ'), select('role', 'Vai trò', [{ value: 'EMPLOYEE', label: 'Nhân viên' }, { value: 'MANAGER', label: 'Quản lý' }, ...(isAdmin ? [{ value: 'ADMIN', label: 'Admin' }] : [])], true), select('locationId', 'Chi nhánh', locations.filter(x => x.active).map(x => ({ value: x.id, label: x.name })), form.role !== 'ADMIN'), textarea('address', 'Địa chỉ')].filter(Boolean);
-  if (tab === 'locations') fields = [field('name', 'Tên chi nhánh', 'text', true), field('address', 'Địa chỉ'), field('latitude', 'Vĩ độ', 'number', true, { step: 'any', min: -90, max: 90 }), field('longitude', 'Kinh độ', 'number', true, { step: 'any', min: -180, max: 180 }), field('radius', 'Bán kính chấm công (m)', 'number', true, { min: 1 })];
-  if (tab === 'shifts') fields = [field('name', 'Tên ca làm', 'text', true), field('startTime', 'Giờ bắt đầu', 'time', true), field('endTime', 'Giờ kết thúc', 'time', true), field('breakMins', 'Thời gian nghỉ (phút)', 'number', false, { min: 0 })];
-  if (tab === 'leaves') fields = [field('fromDate', 'Từ ngày', 'date', true), field('toDate', 'Đến ngày', 'date', true), textarea('reason', 'Lý do nghỉ phép', true)];
-  if (tab === 'overtime') fields = [
-    field('workDate', 'Ngày tăng ca', 'date', true),
-    select('overtimeType', 'Loại tăng ca', [
-      { value: 'WEEKDAY_15', label: 'Tăng ca ngày thường (x1.5)' },
-      { value: 'SUNDAY_2', label: 'Tăng ca Chủ nhật đến 17:00 (x2)' },
-      { value: 'SUNDAY_NIGHT_35', label: 'Tăng ca Chủ nhật sau 17:00 (x3.5)' }
-    ], true),
-    field('hours', 'Số giờ đăng ký', 'number', true, { min: 0.1, step: '0.1' }),
-    textarea('reason', 'Lý do tăng ca', true)
-  ];
-  return <section className="form-panel"><div className="form-panel-head"><div><h3>{editing ? 'Cập nhật thông tin' : createLabel(tab)}</h3><p>Các trường có dấu * là bắt buộc.</p></div><button className="icon-button" onClick={onClose}><X size={18}/></button></div><form onSubmit={onSubmit}><div className="form-grid">{fields}</div><div className="form-actions"><button type="button" className="outline" onClick={onClose}>Hủy</button><button className="primary" disabled={busy}>{busy ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo mới'}</button></div></form></section>;
-}
-
-function DataTable({ tab, rows, employees = [], currentUser, locations = [], attendanceLocationId = '', isAdmin, canReview, onEdit, onToggleEmployee, onToggleLocation, onReview, reviewNote, setReviewNote, onDeleteExtra, onEditDay }) {
-  const getEmployeeName = (row) => {
-    if (row?.user?.fullName) return row.user.fullName;
-    const userId = row?.userId;
-    if (!userId) return '—';
-    if (currentUser?.id && String(currentUser.id) === String(userId)) {
-      return currentUser.fullName || userId;
-    }
-    const employee = employees.find(e => String(e.id) === String(userId));
-    return employee?.fullName || userId;
-  };
-  if (tab === 'employees') return <table><thead><tr><th>Nhân viên</th><th>Mã NV</th><th>Phòng ban</th><th>Chức vụ</th><th>Chi nhánh</th><th>Vai trò</th><th>Trạng thái</th>{isAdmin && <th>Thao tác</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><div className="person-cell"><span className={`table-avatar ${tone(r.fullName)}`}>{(r.fullName || 'N').slice(0,1)}</span><span><b>{r.fullName}</b><small>{r.email}</small></span></div></td><td>{r.employeeCode || '—'}</td><td>{r.department || '—'}</td><td>{r.position || '—'}</td><td>{r.location?.name || '—'}</td><td><RoleBadge role={r.role}/></td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td>{isAdmin && <td><div className="row-actions"><button className="action-icon" title="Chỉnh sửa" onClick={() => onEdit(r)}><Edit3 size={16}/></button><button className="action-icon" title={r.active ? 'Khóa' : 'Mở khóa'} onClick={() => onToggleEmployee(r)}>{r.active ? <Ban size={16}/> : <Check size={16}/>}</button></div></td>}</tr>)}</tbody></table>;
-  if (tab === 'locations') return <table><thead><tr><th>Chi nhánh</th><th>Địa chỉ</th><th>Vĩ độ</th><th>Kinh độ</th><th>Bán kính</th><th>Trạng thái</th>{isAdmin && <th>Thao tác</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><b>{r.name}</b></td><td>{r.address || '—'}</td><td>{r.latitude}</td><td>{r.longitude}</td><td>{r.radius} m</td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td>{isAdmin && <td><div className="row-actions"><button className="action-icon" onClick={() => onEdit(r)} title="Sửa"><Edit3 size={16}/></button><button className="action-icon" onClick={() => onToggleLocation(r)} title="Bật/tắt">{r.active ? <Ban size={16}/> : <Check size={16}/>}</button></div></td>}</tr>)}</tbody></table>;
-  if (tab === 'shifts') return <table><thead><tr><th>Tên ca</th><th>Bắt đầu</th><th>Kết thúc</th><th>Nghỉ giữa ca</th><th>Trạng thái</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td><b>{r.name}</b></td><td>{r.startTime}</td><td>{r.endTime}</td><td>{r.breakMins} phút</td><td><StatusBadge value={r.active ? 'ACTIVE' : 'INACTIVE'}/></td></tr>)}</tbody></table>;
-  if (tab === 'attendance') {
-    // Ghép các lần CHECK_IN/CHECK_OUT của cùng nhân viên trong cùng ngày thành một dòng.
-    const grouped = new Map();
-    rows.forEach(r => {
-      const stamp = r.timestamp ? new Date(r.timestamp) : null;
-      const validStamp = stamp && !Number.isNaN(stamp.getTime()) ? stamp : null;
-      const day = validStamp
-        ? `${validStamp.getFullYear()}-${String(validStamp.getMonth() + 1).padStart(2, '0')}-${String(validStamp.getDate()).padStart(2, '0')}`
-        : 'unknown-date';
-      const key = `${r.userId || 'unknown-user'}_${day}`;
-      if (!grouped.has(key)) 
-        grouped.set(key, {
-          key,
-          userId: r.userId,
-          day,
-          locationId: r.locationId || null,
-          checkIn: null,
-          checkOut: null,
-          notes: [],
-          workFraction: null,
-          manualBonus: 0,
-          extraId: null,
-          manual: false
-        });
-      const item = grouped.get(key);
-      if (String(r.type || '').toUpperCase() === 'EXTRA_HOURS') {
-        // Giờ cộng thêm nhập thủ công: không ảnh hưởng số công của ngày
-        item.manualBonus += Number(r.manualBonusHours || 0);
-        item.extraId = r.id;
-      } else {
-        const fraction = Number(r.workFraction ?? 1);
-        item.workFraction = item.workFraction === null ? fraction : Math.min(item.workFraction, fraction);
-        if (r.source === 'MANUAL') item.manual = true;
-      }
-      const type = String(r.type || '').toUpperCase();
-      if (type === 'CHECK_IN' && validStamp && (!item.checkIn || validStamp < item.checkIn)) item.checkIn = validStamp;
-      if (type === 'CHECK_OUT' && validStamp && (!item.checkOut || validStamp > item.checkOut)) item.checkOut = validStamp;
-      if (r.note && !item.notes.includes(r.note)) item.notes.push(r.note);
-    });
-    const getEmployee = userId =>
-  employees.find(e => String(e.id) === String(userId));
-
-const getBranchName = (userId, attendanceLocationId) => {
-  const employee = employees.find(
-    e => String(e.id) === String(userId)
-  );
-
-  const locationId =
-    attendanceLocationId ||
-    employee?.locationId ||
-    employee?.location?.id ||
-    (
-      String(currentUser?.id) === String(userId)
-        ? currentUser?.locationId
-        : null
-    );
-
-  return (
-    employee?.location?.name ||
-    locations.find(l => String(l.id) === String(locationId))?.name ||
-    'Chưa phân chi nhánh'
-  );
-};
-
-const attendanceRows = [...grouped.values()]
-  .filter(row => {
-    if (!attendanceLocationId) return true;
-
-    const employee = getEmployee(row.userId);
-
-    const locationId =
-      row.locationId ||
-      employee?.locationId ||
-      employee?.location?.id ||
-      (String(currentUser?.id) === String(row.userId)
-        ? currentUser?.locationId
-        : '');
-
-    return String(locationId) === String(attendanceLocationId);
-  })
-  .sort((a, b) => b.day.localeCompare(a.day));
-    const timeOnly = value => value ? value.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—';
-    return <table><thead><tr><th>Họ tên</th><th>Chi nhánh</th><th>Thời gian vào</th><th>Thời gian ra</th><th>Công</th><th>Giờ cộng thêm</th><th>Hình thức</th><th>Ghi chú</th>{canReview && <th>Thao tác</th>}</tr></thead><tbody>{attendanceRows.map(r => <tr key={r.key}><td><div className="person-cell"><span className={`table-avatar ${tone(getEmployeeName({ userId: r.userId }))}`}>{(getEmployeeName({ userId: r.userId }) || 'N').slice(0, 1).toUpperCase()}</span><span><b>{getEmployeeName({ userId: r.userId })}</b><small>{r.day === 'unknown-date' ? 'Không rõ ngày' : date(`${r.day}T00:00:00`)}</small></span></div></td>
-<td>{getBranchName(r.userId, r.locationId)}</td>
-<td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td><td>{r.workFraction === null ? '—' : r.workFraction === 0.5 ? '0,5' : r.workFraction === 0 ? '0' : '1'}</td><td>{r.manualBonus > 0 ? `+${String(Number(r.manualBonus.toFixed(2))).replace('.', ',')} giờ` : '—'}</td><td>{r.manual || r.workFraction === null ? 'Thủ công' : 'GPS'}</td><td>{r.notes.join(' · ') || '—'}{canReview && r.extraId && <button className="reject-btn" style={{ marginLeft: 8 }} title="Xóa giờ cộng thêm thủ công" onClick={() => onDeleteExtra(r.extraId)}><X size={14}/></button>}</td>{canReview && <td><div className="row-actions"><button className="action-icon" title="Chỉnh sửa giờ công" onClick={() => onEditDay(r)}><Edit3 size={16}/></button></div></td>}</tr>)}</tbody></table>;
-  }
-  if (tab === 'leaves' || tab === 'overtime') return <table><thead><tr><th>Nhân viên</th>{tab === 'leaves' ? <><th>Từ ngày</th><th>Đến ngày</th></> : <><th>Ngày tăng ca</th><th>Loại tăng ca</th><th>Số giờ</th></>}<th>Lý do</th><th>Trạng thái</th><th>Ghi chú duyệt</th>{canReview && <th>Xử lý</th>}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{getEmployeeName(r)}</td>{tab === 'leaves' ? <><td>{date(r.fromDate)}</td><td>{date(r.toDate)}</td></> : <><td>{date(r.workDate)}</td><td>{({
-      WEEKDAY_15: 'Ngày thường (x1.5)',
-      SUNDAY_2: 'Chủ nhật (x2)',
-      SUNDAY_NIGHT_35: 'Chủ nhật sau 17h (x3.5)'
-    })[r.overtimeType] || 'Chưa phân loại'}</td><td>{r.hours} giờ</td></>}<td className="reason-cell">{r.reason || '—'}</td><td><StatusBadge value={r.status}/></td><td>{r.reviewNote || '—'}</td>{canReview && <td>{r.status === 'PENDING' ? <div className="review-cell"><input placeholder="Ghi chú duyệt" value={reviewNote[r.id] || ''} onChange={e => setReviewNote(prev => ({ ...prev, [r.id]: e.target.value }))}/><div><button className="approve-btn" onClick={() => onReview(tab, r, 'APPROVED')} title="Duyệt"><Check size={15}/></button><button className="reject-btn" onClick={() => onReview(tab, r, 'REJECTED')} title="Từ chối"><X size={15}/></button></div></div> : '—'}</td>}</tr>)}</tbody></table>;
-  if (tab === 'timesheet') {
-    return (
-      <table>
-        <thead>
-          <tr>
-            <th>Nhân viên</th>
-            <th>Mã nhân viên</th>
-            <th>Phòng ban</th>
-            <th>Tổng ngày công</th>
-            <th>Giờ cộng thêm</th>
-            <th>Tăng ca x1.5</th>
-            <th>Tăng ca x2</th>
-            <th>Tăng ca x3.5</th>
-            <th>Tổng ngày nghỉ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r.id}>
-              <td>
-                <div className="person-cell">
-                  <span className={`table-avatar ${tone(r.fullName)}`}>
-                    {(r.fullName || 'N').slice(0, 1).toUpperCase()}
-                  </span>
-                  <span><b>{r.fullName}</b></span>
-                </div>
-              </td>
-              <td>{r.employeeCode || '—'}</td>
-              <td>{r.department || '—'}</td>
-              <td><b>{r.totalWorkDays}</b> ngày</td>
-              <td><b>{r.bonusHours || 0}</b> giờ</td>
-              <td>{r.overtimeWeekday15 || 0} giờ</td>
-              <td>{r.overtimeSunday2 || 0} giờ</td>
-              <td>{r.overtimeSundayNight35 || 0} giờ</td>
-              <td>{r.leaveDays} ngày</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-  return null;
-}
-function RoleBadge({ role }) { return <span className={`role-badge ${String(role).toLowerCase()}`}>{({ ADMIN: 'Admin', MANAGER: 'Quản lý', EMPLOYEE: 'Nhân viên' })[role] || role}</span>; }
-function StatusBadge({ value }) { const v = String(value || '').toLowerCase(); const label = value === 'ACTIVE' ? 'Hoạt động' : value === 'INACTIVE' ? 'Đã khóa' : statusText(value); return <span className={`status-badge ${v}`}>{label}</span>; }
