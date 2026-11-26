@@ -73,10 +73,11 @@ export default function DataTable({
         : 'unknown-date';
       const key = `${r.userId || 'unknown-user'}_${day}`;
       if (!grouped.has(key)) grouped.set(key, {
-        key, userId: r.userId, day, locationId: r.locationId || null, checkIn: null, checkOut: null,
+        key, userId: r.userId, day, locationId: r.locationId || null, locationName: r.locationName || null, checkIn: null, checkOut: null,
         notes: [], workFraction: null, manualBonus: 0, extraId: null, manual: false
       });
       const item = grouped.get(key);
+      if (!item.locationId && r.locationId) { item.locationId = r.locationId; item.locationName = r.locationName || null; }
       if (String(r.type || '').toUpperCase() === 'EXTRA_HOURS') {
         item.manualBonus += Number(r.manualBonusHours || 0);
         item.extraId = r.id;
@@ -92,9 +93,12 @@ export default function DataTable({
     });
 
     const getEmployee = userId => employees.find(e => String(e.id) === String(userId));
-    const getBranchName = (userId, rowLocationId) => {
+    // Chi nhánh ghi trên bản ghi chấm công luôn được ưu tiên; chỉ bản ghi cũ không có chi nhánh mới dùng chi nhánh hiện tại.
+    const getBranchName = (userId, rowLocationId, rowLocationName) => {
+      if (rowLocationName) return rowLocationName;
+      if (rowLocationId) return locations.find(l => String(l.id) === String(rowLocationId))?.name || 'Chi nhánh cũ';
       const employee = getEmployee(userId);
-      const locationId = rowLocationId || employee?.locationId || employee?.location?.id ||
+      const locationId = employee?.locationId || employee?.location?.id ||
         (String(currentUser?.id) === String(userId) ? currentUser?.locationId : null);
       return employee?.location?.name || locations.find(l => String(l.id) === String(locationId))?.name || 'Chưa phân chi nhánh';
     };
@@ -121,7 +125,7 @@ export default function DataTable({
       <tbody>{attendanceRows.map(r => <React.Fragment key={r.key}>
         <tr>
         <td><div className="person-cell"><span className={`table-avatar ${tone(getEmployeeName({ userId: r.userId }))}`}>{(getEmployeeName({ userId: r.userId }) || 'N').slice(0, 1).toUpperCase()}</span><span><b>{getEmployeeName({ userId: r.userId })}</b><small>{r.day === 'unknown-date' ? 'Không rõ ngày' : date(`${r.day}T00:00:00`)}</small></span></div></td>
-        <td>{getBranchName(r.userId, r.locationId)}</td><td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td>
+        <td>{getBranchName(r.userId, r.locationId, r.locationName)}</td><td>{timeOnly(r.checkIn)}</td><td>{timeOnly(r.checkOut)}</td>
         <td>{r.workFraction === null ? '—' : r.workFraction === 0.5 ? '0,5' : r.workFraction === 0 ? '0' : '1'}</td>
         <td>{r.manualBonus > 0 ? `+${String(Number(r.manualBonus.toFixed(2))).replace('.', ',')} giờ` : '—'}</td>
         <td>{r.manual || r.workFraction === null ? 'Thủ công' : 'GPS'}</td>

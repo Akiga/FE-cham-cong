@@ -3,6 +3,7 @@ export const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const NAV = [
   ['dashboard', 'Tổng quan', 'Activity'],
+  ['office', 'Văn phòng 3D', 'Box'],
   ['attendance', 'Chấm công', 'MapPin'],
   ['employees', 'Nhân viên', 'Users'],
   ['locations', 'Chi nhánh', 'Building2'],
@@ -19,6 +20,7 @@ export const tabLabel = (id, role) =>
 
 export const tabDescription = (tab, role) => {
   const descriptions = {
+    office: 'Những ai đã chấm công vào ca sẽ xuất hiện trong văn phòng.',
     employees: role === 'ADMIN'
       ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.'
       : 'Danh sách nhân viên thuộc chi nhánh được phân công.',

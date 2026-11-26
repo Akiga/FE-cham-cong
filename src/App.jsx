@@ -2,17 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, CalendarDays, CheckCircle, Clock, Download, Edit3,
   LogOut, MapPin, Plus, RefreshCw, Search, Users, X, XCircle,
-  Building2, BriefcaseBusiness, Ban, Check, Filter
+  Building2, BriefcaseBusiness, Ban, Check, Filter, Box
 } from 'lucide-react';
 import './style.css';
 import Dashboard from './components/Dashboard';
 import FormPanel from './components/FormPanel';
 import DataTable from './components/DataTable';
 import LoginPage from './components/LoginPage';
+import Office3D from './components/Office3D';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const NAV = [
-  ['dashboard', 'Tổng quan', Activity], ['attendance', 'Chấm công', MapPin],
+  ['dashboard', 'Tổng quan', Activity], ['office', 'Văn phòng 3D', Box], ['attendance', 'Chấm công', MapPin],
   ['employees', 'Nhân viên', Users], ['locations', 'Chi nhánh', Building2],
   ['shifts', 'Ca làm', Clock], ['leaves', 'Nghỉ phép', CalendarDays],
   ['overtime', 'Tăng ca', BriefcaseBusiness], ['timesheet', 'Bảng công', CheckCircle]
@@ -134,6 +135,7 @@ export default function App() {
     if (!token) return;
     setBusy(true); notify('');
     try {
+      if (tab === 'office') { setData([]); return; }
       if (tab === 'dashboard') {
         setStats(await api('/dashboard')); setData([]);
       } else {
@@ -450,7 +452,9 @@ export default function App() {
         />
       )}
 
-      {tab !== 'dashboard' && <>
+      {tab === 'office' && <Office3D api={api} user={user} role={role} locations={locations} />}
+
+      {tab !== 'dashboard' && tab !== 'office' && <>
         <section className="content-toolbar"><div className="toolbar-actions">
           {tab === 'attendance' && <><select
             className="filter-input"
@@ -517,7 +521,7 @@ export default function App() {
 }
 
 function tabDescription(tab, role) {
-  const descriptions = { employees: role === 'ADMIN' ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.' : 'Danh sách nhân viên thuộc chi nhánh được phân công.', attendance: 'Theo dõi lịch sử vào ca và ra ca.', locations: 'Quản lý địa điểm và phạm vi chấm công GPS.', shifts: 'Thiết lập thời gian làm việc và thời gian nghỉ.', leaves: 'Theo dõi và xử lý các yêu cầu nghỉ phép.', overtime: 'Theo dõi và xử lý yêu cầu làm thêm giờ.', timesheet: 'Tổng hợp ngày công, giờ cộng thêm, giờ tăng ca và ngày nghỉ của nhân viên.' };
+  const descriptions = { office: 'Những ai đã chấm công vào ca sẽ xuất hiện trong văn phòng.', employees: role === 'ADMIN' ? 'Tạo mới, cập nhật và phân công nhân sự vào chi nhánh.' : 'Danh sách nhân viên thuộc chi nhánh được phân công.', attendance: 'Theo dõi lịch sử vào ca và ra ca.', locations: 'Quản lý địa điểm và phạm vi chấm công GPS.', shifts: 'Thiết lập thời gian làm việc và thời gian nghỉ.', leaves: 'Theo dõi và xử lý các yêu cầu nghỉ phép.', overtime: 'Theo dõi và xử lý yêu cầu làm thêm giờ.', timesheet: 'Tổng hợp ngày công, giờ cộng thêm, giờ tăng ca và ngày nghỉ của nhân viên.' };
   return descriptions[tab] || '';
 }
 function createLabel(tab) { return ({ employees: 'Thêm nhân viên', locations: 'Thêm chi nhánh', shifts: 'Tạo ca làm', leaves: 'Tạo đơn nghỉ phép', overtime: 'Tạo đơn tăng ca' })[tab] || 'Thêm mới'; }
